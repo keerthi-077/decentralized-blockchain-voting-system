@@ -1,0 +1,14 @@
+[
+  {
+    "aadharId": "626006041710",
+    "email": "chinnu7122005@gmail.com",
+    "status": "eligible",
+    "hasVoted": false
+  },
+  {
+    "aadharId": "123456789012",
+    "email": "gsravani90455@gmail.com",
+    "status": "eligible",
+    "hasVoted": true
+  }
+]
