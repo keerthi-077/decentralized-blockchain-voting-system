@@ -81,13 +81,31 @@ async function getActiveElectionState() {
 
 async function sendEmailOtp(toEmail, otp, electionTitle) {
   console.log(`[OTP DISPATCH] To: ${toEmail} | Code: ${otp}`);
-  await mailTransporter.sendMail({
-    from: `"Decentralized Voting Portal" <${GMAIL_USER}>`,
-    to: toEmail,
-    subject: `Your 6-Digit Voting OTP — ${electionTitle}`,
-    text: `Your verification OTP for ${electionTitle} is ${otp}. Valid for 5 minutes.`,
-    html: `<div style="font-family:sans-serif;padding:16px"><h2>${electionTitle} — Booth Verification</h2><p>Your 6-digit OTP is:</p><div style="font-size:28px;font-weight:bold;letter-spacing:6px;color:#2563eb;margin:12px 0">${otp}</div><p style="font-size:13px;color:#64748b">Valid for 5 minutes.</p></div>`
+
+  const brevoApiKey = process.env.BREVO_API_KEY;
+  if (!brevoApiKey) {
+    throw new Error("BREVO_API_KEY is missing in environment variables.");
+  }
+
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "accept": "application/json",
+      "api-key": brevoApiKey,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      sender: { name: "Decentralized Voting Portal", email: GMAIL_USER },
+      to: [{ email: toEmail }],
+      subject: `Your 6-Digit Voting OTP — ${electionTitle}`,
+      htmlContent: `<div style="font-family:sans-serif;padding:16px"><h2>${electionTitle} — Booth Verification</h2><p>Your 6-digit OTP is:</p><div style="font-size:28px;font-weight:bold;letter-spacing:6px;color:#2563eb;margin:12px 0">${otp}</div><p style="font-size:13px;color:#64748b">Valid for 5 minutes.</p></div>`,
+    }),
   });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Brevo API error (${response.status}): ${errText}`);
+  }
 }
 
 app.post("/api/admin/create-election", async (req, res) => {
