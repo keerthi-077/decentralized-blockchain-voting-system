@@ -67,7 +67,11 @@ async function getActiveElectionState() {
   const candidates = [];
   for (let i = 1; i <= count; i++) {
     const c = await votingContract.electionCandidates(eId, i);
-    candidates.push({ id: Number(c.id), name: c.name, voteCount: Number(c.voteCount) });
+    const raw = String(c.name || "");
+    const parts = raw.split(" | ");
+    const symbol = parts.length > 1 ? parts[0].trim() : "🗳️";
+    const cleanName = parts.length > 1 ? parts.slice(1).join(" | ").trim() : raw;
+    candidates.push({ id: Number(c.id), name: cleanName, symbol, voteCount: Number(c.voteCount) });
   }
   return {
     electionId: Number(info.id),
@@ -110,12 +114,20 @@ async function sendEmailOtp(toEmail, otp, electionTitle) {
 
 app.post("/api/admin/create-election", async (req, res) => {
   try {
-    const { adminPin, title, candidateNames, startMode, customStartTime, durationMinutes } = req.body;
+    const { adminPin, title, candidateNames, candidateSymbols, startMode, customStartTime, durationMinutes } = req.body;
     if (String(adminPin || "") !== ADMIN_PIN) {
       return res.status(401).json({ error: "Invalid Admin PIN." });
     }
     const cleanTitle = String(title || "General Election").trim();
-    const cleanCandidates = (candidateNames || []).map((c) => String(c).trim()).filter(Boolean);
+    const rawNames = candidateNames || [];
+    const rawSymbols = candidateSymbols || [];
+    const cleanCandidates = [];
+    for (let i = 0; i < rawNames.length; i++) {
+      const name = String(rawNames[i] || "").trim();
+      if (!name) continue;
+      const sym = String(rawSymbols[i] || "🗳️").trim() || "🗳️";
+      cleanCandidates.push(`${sym} | ${name}`);
+    }
     if (cleanCandidates.length < 2) {
       return res.status(400).json({ error: "Please provide at least 2 candidate names." });
     }

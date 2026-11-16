@@ -9,6 +9,6 @@
     "aadharId": "123456789012",
     "email": "gsravani90455@gmail.com",
     "status": "eligible",
-    "hasVoted": true
+    "hasVoted": false
   }
 ]

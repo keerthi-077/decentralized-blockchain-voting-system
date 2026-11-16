@@ -32,7 +32,9 @@ export default function App() {
 
   const [adminPin, setAdminPin] = useState("");
   const [electionTitle, setElectionTitle] = useState("Student Council Election");
+  const PRESET_SYMBOLS = ["🦁", "🌟", "🚀", "📚", "🌿", "⚡", "🛡️", "🎯", "🔥", "🏆"];
   const [candidateInputs, setCandidateInputs] = useState(["Candidate A", "Candidate B", "Candidate C"]);
+  const [candidateSymbols, setCandidateSymbols] = useState(["🦁", "🌟", "🚀"]);
   const [startMode, setStartMode] = useState("now");
   const [customStartTime, setCustomStartTime] = useState("");
   const [durationMinutes, setDurationMinutes] = useState(30);
@@ -48,6 +50,7 @@ export default function App() {
     setAdminPin("");
     setElectionTitle("Student Council Election");
     setCandidateInputs(["Candidate A", "Candidate B", "Candidate C"]);
+    setCandidateSymbols(["🦁", "🌟", "🚀"]);
     setStartMode("now");
     setCustomStartTime("");
     setDurationMinutes(30);
@@ -280,6 +283,7 @@ export default function App() {
           adminPin,
           title: electionTitle,
           candidateNames: candidateInputs,
+          candidateSymbols,
           startMode,
           customStartTime,
           durationMinutes: Number(durationMinutes)
@@ -351,12 +355,10 @@ export default function App() {
       )}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        {[
-          ["vote", "1. Cast Vote"],
-          ["tally", "2. Live Tally"],
-          ["audit", "3. Receipt Audit"],
-          ...(isAdminMode ? [["admin", "4. Admin Setup"]] : [])
-        ].map(([key, label]) => (
+        {(isAdminMode
+          ? [["admin", "1. Admin Setup"], ["tally", "2. Live Tally"]]
+          : [["vote", "1. Cast Vote"], ["tally", "2. Live Tally"], ["audit", "3. Receipt Audit"]]
+        ).map(([key, label]) => (
           <button
             key={key}
             onClick={() => { setActiveTab(key); setError(""); if (key !== "audit") { setAuditInput(""); setAuditResult(null); } }}
@@ -390,7 +392,7 @@ export default function App() {
         </div>
       )}
 
-      {activeTab === "vote" && (
+      {!isAdminMode && activeTab === "vote" && (
         <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 24, background: "#ffffff" }}>
           {!isElectionActive ? (
             <div style={{ textAlign: "center", padding: "16px 0", color: "#475569" }}>
@@ -484,7 +486,7 @@ export default function App() {
                         checked={selectedCandidate === c.id}
                         onChange={() => { if (isSessionExpiredNow()) return; setSelectedCandidate(c.id); }}
                       />
-                      <span style={{ fontWeight: 600 }}>{c.name}</span>
+                      <span style={{ fontSize: 22 }}>{c.symbol || "🗳️"}</span><span style={{ fontWeight: 600 }}>{c.name}</span>
                     </label>
                   ))}
                   <button
@@ -529,16 +531,35 @@ export default function App() {
               Window: {new Date(election.startTime * 1000).toLocaleString()} — {new Date(election.endTime * 1000).toLocaleString()}
             </p>
           )}
-          {(election?.candidates || []).map((c) => (
-            <div key={c.id} style={{ display: "flex", justifyContent: "space-between", padding: "12px 14px", borderBottom: "1px solid #e2e8f0" }}>
-              <span style={{ fontWeight: 600 }}>{c.name}</span>
-              <span style={{ fontWeight: 700, color: "#2563eb" }}>{c.voteCount} votes</span>
-            </div>
-          ))}
+          {(() => {
+            const list = election?.candidates || [];
+            const maxVotes = list.reduce((m, x) => Math.max(m, Number(x.voteCount || 0)), 0);
+            const winners = isAfterEnd && maxVotes > 0 ? list.filter((x) => Number(x.voteCount || 0) === maxVotes) : [];
+            return (
+              <>
+                {isAfterEnd && hasElection && (
+                  <div style={{ padding: 14, borderRadius: 8, marginBottom: 14, background: "#ecfdf5", border: "1px solid #6ee7b7", textAlign: "center" }}>
+                    {winners.length === 1 && <strong style={{ color: "#065f46", fontSize: 16 }}>🏆 Winner: {winners[0].symbol || "🗳️"} {winners[0].name} ({winners[0].voteCount} votes)</strong>}
+                    {winners.length > 1 && <strong style={{ color: "#92400e", fontSize: 15 }}>🤝 Tie ({maxVotes} votes): {winners.map((w) => `${w.symbol || "🗳️"} ${w.name}`).join(" & ")}</strong>}
+                    {winners.length === 0 && <span style={{ color: "#475569", fontWeight: 600 }}>Election ended with 0 votes cast.</span>}
+                  </div>
+                )}
+                {list.map((c) => {
+                  const isWin = isAfterEnd && maxVotes > 0 && Number(c.voteCount) === maxVotes;
+                  return (
+                    <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderRadius: 8, marginBottom: 8, background: isWin ? "#f0fdf4" : "#f8fafc", border: isWin ? "1px solid #86efac" : "1px solid #e2e8f0" }}>
+                      <span style={{ fontWeight: 600 }}>{c.symbol || "🗳️"} {c.name} {isWin ? "🏆" : ""}</span>
+                      <span style={{ fontWeight: 700, color: isWin ? "#15803d" : "#2563eb" }}>{c.voteCount} votes</span>
+                    </div>
+                  );
+                })}
+              </>
+            );
+          })()}
         </div>
       )}
 
-      {activeTab === "audit" && (
+      {!isAdminMode && activeTab === "audit" && (
         <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 24, background: "#ffffff" }}>
           <h2 style={{ fontSize: 18, marginTop: 0 }}>Public Receipt Audit</h2>
           <form onSubmit={handleAuditReceipt}>
@@ -571,7 +592,7 @@ export default function App() {
         </div>
       )}
 
-      {activeTab === "admin" && (
+      {isAdminMode && activeTab === "admin" && (
         <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 24, background: "#ffffff" }}>
           <h2 style={{ fontSize: 18, marginTop: 0 }}>Admin Election Setup (On-Chain Deployment)</h2>
           {hasElection && !isAfterEnd ? (
@@ -610,6 +631,9 @@ export default function App() {
             <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Candidates</label>
             {candidateInputs.map((name, idx) => (
               <div key={idx} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                <select value={candidateSymbols[idx] || "🗳️"} onChange={(e) => { const u = [...candidateSymbols]; u[idx] = e.target.value; setCandidateSymbols(u); }} style={{ padding: "8px", fontSize: 18, borderRadius: 8, border: "1px solid #cbd5e1", background: "#f8fafc" }}>
+                  {PRESET_SYMBOLS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
                 <input
                   type="text"
                   placeholder={`Candidate ${idx + 1} Name`}
@@ -625,7 +649,7 @@ export default function App() {
                 {candidateInputs.length > 2 && (
                   <button
                     type="button"
-                    onClick={() => setCandidateInputs(candidateInputs.filter((_, i) => i !== idx))}
+                    onClick={() => { setCandidateInputs(candidateInputs.filter((_, i) => i !== idx)); setCandidateSymbols(candidateSymbols.filter((_, i) => i !== idx)); }}
                     style={{ padding: "0 12px", borderRadius: 8, border: "1px solid #fca5a5", background: "#fee2e2", color: "#991b1b", cursor: "pointer" }}
                   >
                     Remove
@@ -635,7 +659,7 @@ export default function App() {
             ))}
             <button
               type="button"
-              onClick={() => setCandidateInputs([...candidateInputs, ""])}
+              onClick={() => { setCandidateInputs([...candidateInputs, ""]); setCandidateSymbols([...candidateSymbols, PRESET_SYMBOLS[candidateInputs.length % PRESET_SYMBOLS.length]]); }}
               style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#f8fafc", fontSize: 13, cursor: "pointer", marginBottom: 14 }}
             >
               + Add Another Candidate
