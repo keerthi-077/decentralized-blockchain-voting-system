@@ -45,6 +45,7 @@ export default function App() {
   const [storageTick, setStorageTick] = useState(0);
   const prevElectionIdRef = useRef(null);
   const wasElectionLiveRef = useRef(false);
+  const autoSwitchedWinnerForRef = useRef(null);
 
   const resetAdminSetupForm = () => {
     setAdminPin("");
@@ -65,9 +66,15 @@ export default function App() {
 
     if (isCurrentlyLive) {
       wasElectionLiveRef.current = true;
-    } else if (hasEnded && wasElectionLiveRef.current) {
-      wasElectionLiveRef.current = false;
-      resetAdminSetupForm();
+    } else if (hasEnded) {
+      if (wasElectionLiveRef.current) {
+        wasElectionLiveRef.current = false;
+        resetAdminSetupForm();
+      }
+      if (autoSwitchedWinnerForRef.current !== Number(election.electionId)) {
+        autoSwitchedWinnerForRef.current = Number(election.electionId);
+        setActiveTab("winners");
+      }
     }
   }, [election?.electionId, election?.startTime, election?.endTime, nowSec]);
 
@@ -356,8 +363,8 @@ export default function App() {
 
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
         {(isAdminMode
-          ? [["admin", "1. Admin Setup"], ["tally", "2. Live Tally"]]
-          : [["vote", "1. Cast Vote"], ["tally", "2. Live Tally"], ["audit", "3. Receipt Audit"]]
+          ? [["admin", "1. Admin Setup"], ["tally", "2. Live Tally"], ...(isAfterEnd && hasElection ? [["winners", "🏆 Election Winner"]] : [])]
+          : [["vote", "1. Cast Vote"], ["tally", "2. Live Tally"], ["audit", "3. Receipt Audit"], ...(isAfterEnd && hasElection ? [["winners", "🏆 Election Winner"]] : [])]
         ).map(([key, label]) => (
           <button
             key={key}
@@ -531,33 +538,73 @@ export default function App() {
               Window: {new Date(election.startTime * 1000).toLocaleString()} — {new Date(election.endTime * 1000).toLocaleString()}
             </p>
           )}
-          {(() => {
-            const list = election?.candidates || [];
-            const maxVotes = list.reduce((m, x) => Math.max(m, Number(x.voteCount || 0)), 0);
-            const winners = isAfterEnd && maxVotes > 0 ? list.filter((x) => Number(x.voteCount || 0) === maxVotes) : [];
-            return (
-              <>
-                {isAfterEnd && hasElection && (
-                  <div style={{ padding: 14, borderRadius: 8, marginBottom: 14, background: "#ecfdf5", border: "1px solid #6ee7b7", textAlign: "center" }}>
-                    {winners.length === 1 && <strong style={{ color: "#065f46", fontSize: 16 }}>🏆 Winner: {winners[0].symbol || "🗳️"} {winners[0].name} ({winners[0].voteCount} votes)</strong>}
-                    {winners.length > 1 && <strong style={{ color: "#92400e", fontSize: 15 }}>🤝 Tie ({maxVotes} votes): {winners.map((w) => `${w.symbol || "🗳️"} ${w.name}`).join(" & ")}</strong>}
-                    {winners.length === 0 && <span style={{ color: "#475569", fontWeight: 600 }}>Election ended with 0 votes cast.</span>}
-                  </div>
-                )}
-                {list.map((c) => {
-                  const isWin = isAfterEnd && maxVotes > 0 && Number(c.voteCount) === maxVotes;
-                  return (
-                    <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderRadius: 8, marginBottom: 8, background: isWin ? "#f0fdf4" : "#f8fafc", border: isWin ? "1px solid #86efac" : "1px solid #e2e8f0" }}>
-                      <span style={{ fontWeight: 600 }}>{c.symbol || "🗳️"} {c.name} {isWin ? "🏆" : ""}</span>
-                      <span style={{ fontWeight: 700, color: isWin ? "#15803d" : "#2563eb" }}>{c.voteCount} votes</span>
-                    </div>
-                  );
-                })}
-              </>
-            );
-          })()}
+          {(election?.candidates || []).map((c) => (
+            <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderRadius: 8, marginBottom: 8, background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+              <span style={{ fontWeight: 600, fontSize: 15 }}>
+                <span style={{ fontSize: 20, marginRight: 8 }}>{c.symbol || "🗳️"}</span>
+                {c.name}
+              </span>
+              <span style={{ fontWeight: 700, color: "#2563eb" }}>{c.voteCount} {Number(c.voteCount) === 1 ? "vote" : "votes"}</span>
+            </div>
+          ))}
         </div>
       )}
+
+      
+      {activeTab === "winners" && isAfterEnd && hasElection && (() => {
+        const list = election?.candidates || [];
+        const totalVotes = list.reduce((s, x) => s + Number(x.voteCount || 0), 0);
+        const maxVotes = list.reduce((m, x) => Math.max(m, Number(x.voteCount || 0)), 0);
+        const winners = maxVotes > 0 ? list.filter((x) => Number(x.voteCount || 0) === maxVotes) : [];
+        const sorted = [...list].sort((x, y) => Number(y.voteCount || 0) - Number(x.voteCount || 0));
+        return (
+          <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 24, background: "#ffffff" }}>
+            <div style={{ textAlign: "center", fontSize: 12, fontWeight: 700, letterSpacing: 1.2, color: "#047857", textTransform: "uppercase", marginBottom: 16 }}>
+              Official Election Result • {election.title}
+            </div>
+            {winners.length === 1 && (
+              <div style={{ padding: "28px 20px", borderRadius: 14, marginBottom: 22, background: "linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)", border: "2px solid #34d399", textAlign: "center" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#065f46", letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>🏆 Elected Winner</div>
+                <div style={{ fontSize: 68, lineHeight: 1.1, marginBottom: 12 }}>{winners[0].symbol || "🗳️"}</div>
+                <div style={{ fontSize: 30, fontWeight: 800, color: "#064e3b", lineHeight: 1.2 }}>{winners[0].name}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#047857", marginTop: 10 }}>{winners[0].voteCount} {Number(winners[0].voteCount) === 1 ? "Vote" : "Votes"} ({totalVotes} total votes cast)</div>
+              </div>
+            )}
+            {winners.length > 1 && (
+              <div style={{ padding: "24px 18px", borderRadius: 14, marginBottom: 22, background: "#fffbeb", border: "2px solid #fbbf24", textAlign: "center" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#92400e", letterSpacing: 1, textTransform: "uppercase", marginBottom: 12 }}>🤝 Official Tie ({maxVotes} {maxVotes === 1 ? "Vote" : "Votes"} Each)</div>
+                <div style={{ display: "flex", justifyContent: "center", gap: 24, flexWrap: "wrap" }}>
+                  {winners.map((w) => (
+                    <div key={w.id} style={{ padding: "12px 18px", borderRadius: 12, background: "#ffffff", border: "1px solid #fcd34d" }}>
+                      <div style={{ fontSize: 56, lineHeight: 1.1, marginBottom: 8 }}>{w.symbol || "🗳️"}</div>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: "#78350f" }}>{w.name}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {winners.length === 0 && (
+              <div style={{ padding: 24, borderRadius: 12, marginBottom: 20, background: "#f8fafc", border: "1px solid #cbd5e1", textAlign: "center", color: "#475569", fontWeight: 600 }}>
+                Election completed with 0 votes cast. No winner declared.
+              </div>
+            )}
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#475569", marginBottom: 10, textTransform: "uppercase" }}>Complete Candidate Standings</div>
+            {sorted.map((c) => {
+              const isWin = maxVotes > 0 && Number(c.voteCount) === maxVotes;
+              return (
+                <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: isWin ? "14px 16px" : "10px 14px", borderRadius: 8, marginBottom: 8, background: isWin ? "#f0fdf4" : "#f8fafc", border: isWin ? "1px solid #86efac" : "1px solid #e2e8f0" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: isWin ? 28 : 18 }}>{c.symbol || "🗳️"}</span>
+                    <span style={{ fontWeight: isWin ? 700 : 500, fontSize: isWin ? 17 : 14, color: "#0f172a" }}>{c.name}</span>
+                    {isWin && <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "#16a34a", color: "#fff" }}>{winners.length > 1 ? "TIED" : "WINNER"}</span>}
+                  </div>
+                  <span style={{ fontWeight: 700, fontSize: isWin ? 16 : 14, color: isWin ? "#15803d" : "#475569" }}>{c.voteCount} {Number(c.voteCount) === 1 ? "vote" : "votes"}</span>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {!isAdminMode && activeTab === "audit" && (
         <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 24, background: "#ffffff" }}>
