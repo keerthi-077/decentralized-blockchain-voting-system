@@ -9,6 +9,18 @@
     "aadharId": "123456789012",
     "email": "gsravani90455@gmail.com",
     "status": "eligible",
-    "hasVoted": false
+    "hasVoted": true
+  },
+  {
+    "aadharId": "111122223333",
+    "email": "kothakurvaswathi@gmail.com",
+    "hasVoted": false,
+    "status": "eligible"
+  },
+  {
+    "aadharId": "999988887777",
+    "email": "yashashwinidornala@gmail.com",
+    "hasVoted": true,
+    "status": "eligible"
   }
 ]
